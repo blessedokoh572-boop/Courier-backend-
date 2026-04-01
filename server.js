@@ -1,60 +1,72 @@
+require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
 const mongoose = require("mongoose");
+const cors = require("cors");
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// CONNECT TO MONGODB
-mongoose.connect("mongodb+srv://admin:Special_12@cluster0.qyfihfs.mongodb.net/courierDB?retryWrites=true&w=majority")
-  .then(() => console.log("MongoDB Connected"))
+//  CONNECT TO MONGODB
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log(" MongoDB Connected"))
   .catch(err => console.log(" Error:", err));
 
-// SCHEMA
+//  SCHEMA
 const shipmentSchema = new mongoose.Schema({
-  trackingId: String,
+  trackingID: String,
   sender: String,
   receiver: String,
-  pickup: String,
-  destination: String,
-  weight: String,
-  status: String
+  address: String,
+  weight: Number,
+  status: {
+    type: String,
+    default: "In Transit"
+  }
 });
 
 const Shipment = mongoose.model("Shipment", shipmentSchema);
 
-// CREATE SHIPMENT
-app.post("/ship", async (req, res) => {
-  const shipment = new Shipment(req.body);
+//  CREATE SHIPMENT
+app.post("/api/shipments", async (req, res) => {
+  const { sender, receiver, address, weight } = req.body;
+
+  const trackingID = "TRK" + Math.floor(Math.random() * 1000000);
+
+  const shipment = new Shipment({
+    trackingID,
+    sender,
+    receiver,
+    address,
+    weight
+  });
+
   await shipment.save();
-  res.send({ message: "Shipment saved" });
+
+  res.json({
+    message: "Shipment created",
+    trackingID
+  });
 });
 
-// TRACK SHIPMENT
+//  TRACK SHIPMENT
 app.get("/api/track/:id", async (req, res) => {
-  const shipment = await Shipment.findOne({ trackingId: req.params.id });
-  res.json(shipment || null);
-});
+  const shipment = await Shipment.findOne({
+    trackingID: req.params.id
+  });
 
-// UPDATE STATUS (ADMIN FEATURE)
-app.put("/api/update/:id", async (req, res) => {
-  const shipment = await Shipment.findOneAndUpdate(
-    { trackingId: req.params.id },
-    { status: req.body.status },
-    { new: true }
-  );
+  if (!shipment) {
+    return res.status(404).json({ message: "Not found" });
+  }
+
   res.json(shipment);
 });
 
-// HOME
+//  ROOT TEST
 app.get("/", (req, res) => {
-  res.send("Buka Courier API with DB ");
+  res.send("Courier API is running ");
 });
 
+//  START SERVER
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
